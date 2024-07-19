@@ -1,6 +1,7 @@
 """.. include:: ../../README.md"""  # noqa: D415
 
 import pathlib
+from typing import Generic, TypeVar
 
 from styxdefs import (
     Execution,
@@ -9,6 +10,8 @@ from styxdefs import (
     OutputPathType,
     Runner,
 )
+
+T = TypeVar("T", bound=Runner)
 
 
 class _GraphExecution(Execution):
@@ -44,13 +47,13 @@ class _GraphExecution(Execution):
 
 
 # Define a new runner
-class GraphRunner(Runner):
+class GraphRunner(Runner, Generic[T]):
     """Graph runner."""
 
-    def __init__(self, base: Runner) -> None:
+    def __init__(self, base: T) -> None:
         """Create a new GraphRunner."""
-        self.base = base
-        self.graph: list[tuple[str, list[InputPathType], list[OutputPathType]]] = []
+        self.base: T = base
+        self._graph: list[tuple[str, list[InputPathType], list[OutputPathType]]] = []
 
     def start_execution(self, metadata: Metadata) -> Execution:
         """Start a new execution."""
@@ -63,15 +66,14 @@ class GraphRunner(Runner):
         output_file: list[OutputPathType],
     ) -> None:
         """Append a node to the graph."""
-        print(f"Appending {metadata.name} with {input_file} and {output_file}")
-        self.graph.append((metadata.name, input_file, output_file))
+        self._graph.append((metadata.name, input_file, output_file))
 
     def mermaid(self) -> str:
         """Generate a mermaid graph of the graph."""
         connections: list[str] = []
         inputs_lookup: dict[str, list[str]] = {}
         outputs_lookup: dict[str, str] = {}
-        for id, inputs, outputs in self.graph:
+        for id, inputs, outputs in self._graph:
             for input in inputs:
                 if input not in inputs_lookup:
                     inputs_lookup[input] = []
@@ -79,7 +81,7 @@ class GraphRunner(Runner):
             root_output = outputs[0]
             outputs_lookup[root_output] = id
 
-        for id, inputs, _ in self.graph:
+        for id, inputs, _ in self._graph:
             for input in inputs:
                 for output, output_id in outputs_lookup.items():
                     if pathlib.Path(input).is_relative_to(
@@ -89,7 +91,7 @@ class GraphRunner(Runner):
 
         # Generate mermaid
         mermaid = "graph TD\n"
-        for id, _, _ in self.graph:
+        for id, _, _ in self._graph:
             mermaid += f"  {id}\n"
         for connection in connections:
             mermaid += f"  {connection}\n"

@@ -27,7 +27,7 @@ class _GraphExecution(Execution):
         self.input_files: list[InputPathType] = []
         self.output_files: list[OutputPathType] = []
 
-    def input_file(self, host_file: InputPathType) -> str:
+    def input_file(self, host_file: InputPathType, resolve_parent: bool = True) -> str:
         """Resolve input file."""
         self.input_files.append(host_file)
         return self.base.input_file(host_file)
@@ -68,7 +68,7 @@ class GraphRunner(Runner, Generic[T]):
         """Append a node to the graph."""
         self._graph.append((metadata.name, input_file, output_file))
 
-    def mermaid(self) -> str:
+    def node_graph_mermaid(self) -> str:
         """Generate a mermaid graph of the graph."""
         connections: list[str] = []
         inputs_lookup: dict[str, list[str]] = {}
@@ -79,7 +79,7 @@ class GraphRunner(Runner, Generic[T]):
                     inputs_lookup[input] = []
                 inputs_lookup[input].append(id)
             root_output = outputs[0]
-            outputs_lookup[root_output] = id
+            outputs_lookup[str(root_output)] = id
 
         for id, inputs, _ in self._graph:
             for input in inputs:

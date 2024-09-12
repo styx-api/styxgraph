@@ -30,7 +30,7 @@ class _GraphExecution(Execution):
     def input_file(self, host_file: InputPathType, resolve_parent: bool = True) -> str:
         """Resolve input file."""
         self.input_files.append(host_file)
-        return self.base.input_file(host_file)
+        return self.base.input_file(host_file, resolve_parent=resolve_parent)
 
     def run(self, cargs: list[str]) -> None:
         """Run the command."""

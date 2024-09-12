@@ -27,7 +27,7 @@ class _GraphExecution(Execution):
         self.input_files: list[InputPathType] = []
         self.output_files: list[OutputPathType] = []
 
-    def input_file(self, host_file: InputPathType, resolve_parent: bool = True) -> str:
+    def input_file(self, host_file: InputPathType, resolve_parent: bool = False) -> str:
         """Resolve input file."""
         self.input_files.append(host_file)
         return self.base.input_file(host_file, resolve_parent=resolve_parent)

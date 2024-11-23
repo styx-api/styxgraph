@@ -1,6 +1,7 @@
 """.. include:: ../../README.md"""  # noqa: D415
 
 import pathlib
+import typing
 from typing import Generic, TypeVar
 
 from styxdefs import (
@@ -39,7 +40,12 @@ class _GraphExecution(Execution):
             host_file, resolve_parent=resolve_parent, mutable=mutable
         )
 
-    def run(self, cargs: list[str]) -> None:
+    def run(
+        self,
+        cargs: list[str],
+        handle_stdout: typing.Callable[[str], None] | None = None,
+        handle_stderr: typing.Callable[[str], None] | None = None,
+    ) -> None:
         """Run the command."""
         self.graph_runner.graph_append(
             self.metadata, self.input_files, self.output_files

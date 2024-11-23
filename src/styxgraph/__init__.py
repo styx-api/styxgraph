@@ -50,7 +50,9 @@ class _GraphExecution(Execution):
         self.graph_runner.graph_append(
             self.metadata, self.input_files, self.output_files
         )
-        return self.base.run(cargs)
+        return self.base.run(
+            cargs, handle_stdout=handle_stdout, handle_stderr=handle_stderr
+        )
 
     def output_file(self, local_file: str, optional: bool = False) -> OutputPathType:
         """Resolve output file."""

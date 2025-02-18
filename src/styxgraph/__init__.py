@@ -48,7 +48,7 @@ class _GraphExecution(Execution):
 
     def params(self, params: dict) -> dict:
         """No changes to params."""
-        return params
+        return self.base.params(params)
 
     def run(
         self,

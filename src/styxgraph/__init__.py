@@ -91,7 +91,7 @@ class GraphRunner(Runner, Generic[T]):
 
     def node_graph_mermaid(self) -> str:
         """Generate a mermaid graph of the graph."""
-        connections: list[str] = []
+        connections: set[str] = set()
         inputs_lookup: dict[str, list[str]] = {}
         outputs_lookup: dict[str, str] = {}
         for id, inputs, outputs in self._graph:

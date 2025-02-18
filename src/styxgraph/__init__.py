@@ -40,6 +40,16 @@ class _GraphExecution(Execution):
             host_file, resolve_parent=resolve_parent, mutable=mutable
         )
 
+    def output_file(self, local_file: str, optional: bool = False) -> OutputPathType:
+        """Resolve output file."""
+        output_file = self.base.output_file(local_file, optional)
+        self.output_files.append(output_file)
+        return output_file
+
+    def params(self, params: dict) -> dict:
+        """No changes to params."""
+        return params
+
     def run(
         self,
         cargs: list[str],
@@ -53,12 +63,6 @@ class _GraphExecution(Execution):
         return self.base.run(
             cargs, handle_stdout=handle_stdout, handle_stderr=handle_stderr
         )
-
-    def output_file(self, local_file: str, optional: bool = False) -> OutputPathType:
-        """Resolve output file."""
-        output_file = self.base.output_file(local_file, optional)
-        self.output_files.append(output_file)
-        return output_file
 
 
 # Define a new runner
@@ -81,7 +85,9 @@ class GraphRunner(Runner, Generic[T]):
         output_file: list[OutputPathType],
     ) -> None:
         """Append a node to the graph."""
-        self._graph.append((metadata.name, input_file, output_file))
+        self._graph.append(
+            (metadata.package + " " + metadata.name, input_file, output_file)
+        )
 
     def node_graph_mermaid(self) -> str:
         """Generate a mermaid graph of the graph."""

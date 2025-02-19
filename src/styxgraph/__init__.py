@@ -1,32 +1,124 @@
 """.. include:: ../../README.md"""  # noqa: D415
 
-import pathlib
 import typing
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
 from typing import Generic, TypeVar
 
-from styxdefs import (
-    Execution,
-    InputPathType,
-    Metadata,
-    OutputPathType,
-    Runner,
-)
+from styxdefs import Execution, InputPathType, Metadata, OutputPathType, Runner
+
+
+@dataclass
+class Node:
+    """Represents a command execution node in the dependency graph."""
+
+    package: str
+    name: str
+    inputs: list[Path]
+    outputs: list[Path]
+
+    @property
+    def id(self) -> str:
+        """Generate a unique identifier for the node."""
+        return f"{self.package}_{self.name}"
+
+    @property
+    def label(self) -> str:
+        """Generate a display label for the node."""
+        return f"{self.package}/{self.name}"
+
+
+class GraphStyle(Enum):
+    """Supported Mermaid graph styles."""
+
+    TOP_DOWN = "TD"
+    LEFT_RIGHT = "LR"
+    BOTTOM_TOP = "BT"
+    RIGHT_LEFT = "RL"
+
+
+class DependencyResolver:
+    """Handles the logic for resolving dependencies between nodes."""
+
+    @staticmethod
+    def is_dependent(input_path: Path, output_root: Path) -> bool:
+        """Check if input_path is within the output root directory."""
+        try:
+            return input_path.is_relative_to(output_root)
+        except ValueError:
+            return False
+
+    def build_dependencies(self, nodes: list[Node]) -> set[tuple[str, str]]:
+        """Build all dependencies between nodes."""
+        dependencies = set()
+
+        # Create lookup for root output directories
+        output_roots = {
+            node.outputs[0]: node.id
+            for node in nodes
+            if node.outputs
+        }
+
+        # Check each node's inputs against all output roots
+        for node in nodes:
+            for input_path in node.inputs:
+                for output_root, source_id in output_roots.items():
+                    if (
+                        self.is_dependent(input_path, output_root)
+                        and source_id != node.id
+                    ):
+                        dependencies.add((source_id, node.id))
+
+        return dependencies
+
+
+class MermaidFormatter:
+    """Handles the generation of Mermaid diagram syntax."""
+
+    def __init__(self, style: GraphStyle = GraphStyle.TOP_DOWN) -> None:
+        """Create MermaidFormatter."""
+        self.style = style
+
+    def format_node(self, node: Node) -> str:
+        """Format a single node for Mermaid."""
+        return f'  {node.id}["{node.label}"]'
+
+    def format_edge(self, source: str, target: str) -> str:
+        """Format a single edge for Mermaid."""
+        return f"  {source} --> {target}"
+
+    def generate_diagram(
+        self, nodes: list[Node], dependencies: set[tuple[str, str]]
+    ) -> str:
+        """Generate complete Mermaid diagram."""
+        lines = [f"graph {self.style.value}"]
+
+        # Add nodes
+        for node in nodes:
+            lines.append(self.format_node(node))
+
+        # Add edges
+        for source, target in dependencies:
+            lines.append(self.format_edge(source, target))
+
+        return "\n".join(lines)
+
 
 T = TypeVar("T", bound=Runner)
 
 
 class _GraphExecution(Execution):
-    """Graph execution."""
+    """Wrapper execution that tracks file operations."""
 
     def __init__(
         self, base: Execution, graph_runner: "GraphRunner", metadata: Metadata
     ) -> None:
-        """Create a new GraphExecution."""
         self.base = base
         self.graph_runner = graph_runner
         self.metadata = metadata
-        self.input_files: list[InputPathType] = []
-        self.output_files: list[OutputPathType] = []
+        self.input_files: list[Path] = []
+        self.output_files: list[Path] = []
 
     def input_file(
         self,
@@ -34,21 +126,13 @@ class _GraphExecution(Execution):
         resolve_parent: bool = False,
         mutable: bool = False,
     ) -> str:
-        """Resolve input file."""
-        self.input_files.append(host_file)
-        return self.base.input_file(
-            host_file, resolve_parent=resolve_parent, mutable=mutable
-        )
+        self.input_files.append(Path(host_file))
+        return self.base.input_file(host_file, resolve_parent, mutable)
 
     def output_file(self, local_file: str, optional: bool = False) -> OutputPathType:
-        """Resolve output file."""
         output_file = self.base.output_file(local_file, optional)
-        self.output_files.append(output_file)
+        self.output_files.append(Path(output_file))
         return output_file
-
-    def params(self, params: dict) -> dict:
-        """No changes to params."""
-        return self.base.params(params)
 
     def run(
         self,
@@ -56,8 +140,7 @@ class _GraphExecution(Execution):
         handle_stdout: typing.Callable[[str], None] | None = None,
         handle_stderr: typing.Callable[[str], None] | None = None,
     ) -> None:
-        """Run the command."""
-        self.graph_runner.graph_append(
+        self.graph_runner.record_execution(
             self.metadata, self.input_files, self.output_files
         )
         return self.base.run(
@@ -65,55 +148,36 @@ class _GraphExecution(Execution):
         )
 
 
-# Define a new runner
 class GraphRunner(Runner, Generic[T]):
-    """Graph runner."""
+    """Runner that builds and maintains a dependency graph."""
 
-    def __init__(self, base: T) -> None:
-        """Create a new GraphRunner."""
-        self.base: T = base
-        self._graph: list[tuple[str, list[InputPathType], list[OutputPathType]]] = []
+    def __init__(self, base: T, graph_style: GraphStyle = GraphStyle.TOP_DOWN) -> None:
+        """Create GraphRunner."""
+        self.base = base
+        self.nodes: list[Node] = []
+        self.dependency_resolver = DependencyResolver()
+        self.mermaid_formatter = MermaidFormatter(graph_style)
 
     def start_execution(self, metadata: Metadata) -> Execution:
-        """Start a new execution."""
+        """Start execution."""
         return _GraphExecution(self.base.start_execution(metadata), self, metadata)
 
-    def graph_append(
+    def record_execution(
         self,
         metadata: Metadata,
-        input_file: list[InputPathType],
-        output_file: list[OutputPathType],
+        input_files: list[Path],
+        output_files: list[Path],
     ) -> None:
-        """Append a node to the graph."""
-        self._graph.append(
-            (metadata.package + " " + metadata.name, input_file, output_file)
+        """Record a command execution in the graph."""
+        node = Node(
+            package=metadata.package,
+            name=metadata.name,
+            inputs=input_files,
+            outputs=output_files,
         )
+        self.nodes.append(node)
 
-    def node_graph_mermaid(self) -> str:
-        """Generate a mermaid graph of the graph."""
-        connections: set[str] = set()
-        inputs_lookup: dict[str, list[str]] = {}
-        outputs_lookup: dict[str, str] = {}
-        for id, inputs, outputs in self._graph:
-            for input in inputs:
-                if input not in inputs_lookup:
-                    inputs_lookup[input] = []
-                inputs_lookup[input].append(id)
-            root_output = outputs[0]
-            outputs_lookup[str(root_output)] = id
-
-        for id, inputs, _ in self._graph:
-            for input in inputs:
-                for output, output_id in outputs_lookup.items():
-                    if pathlib.Path(input).is_relative_to(
-                        output
-                    ):  # is subfolder/file in output root
-                        connections.append(f"{output_id} --> {id}")
-
-        # Generate mermaid
-        mermaid = "graph TD\n"
-        for id, _, _ in self._graph:
-            mermaid += f"  {id}\n"
-        for connection in connections:
-            mermaid += f"  {connection}\n"
-        return mermaid
+    def generate_mermaid(self) -> str:
+        """Generate a Mermaid diagram of the dependency graph."""
+        dependencies = self.dependency_resolver.build_dependencies(self.nodes)
+        return self.mermaid_formatter.generate_diagram(self.nodes, dependencies)

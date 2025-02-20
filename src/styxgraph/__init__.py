@@ -54,11 +54,7 @@ class DependencyResolver:
         dependencies = set()
 
         # Create lookup for root output directories
-        output_roots = {
-            node.outputs[0]: node.id
-            for node in nodes
-            if node.outputs
-        }
+        output_roots = {node.outputs[0]: node.id for node in nodes if node.outputs}
 
         # Check each node's inputs against all output roots
         for node in nodes:
@@ -133,6 +129,9 @@ class _GraphExecution(Execution):
         output_file = self.base.output_file(local_file, optional)
         self.output_files.append(Path(output_file))
         return output_file
+
+    def params(self, params: dict) -> dict:
+        return self.base.params(params)
 
     def run(
         self,

@@ -13,6 +13,7 @@ from styxdefs import Execution, InputPathType, Metadata, OutputPathType, Runner
 class Node:
     """Represents a command execution node in the dependency graph."""
 
+    execution_id: int
     package: str
     name: str
     inputs: list[Path]
@@ -21,7 +22,7 @@ class Node:
     @property
     def id(self) -> str:
         """Generate a unique identifier for the node."""
-        return f"{self.package}_{self.name}"
+        return f"{self.execution_id}_{self.package}_{self.name}"
 
     @property
     def label(self) -> str:
@@ -156,10 +157,15 @@ class GraphRunner(Runner, Generic[T]):
         self.nodes: list[Node] = []
         self.dependency_resolver = DependencyResolver()
         self.mermaid_formatter = MermaidFormatter(graph_style)
+        self._execution_counter = 0
 
     def start_execution(self, metadata: Metadata) -> Execution:
         """Start execution."""
         return _GraphExecution(self.base.start_execution(metadata), self, metadata)
+    
+    def _next_execution_id(self) -> int:
+        self._execution_counter += 1
+        return self._execution_counter - 1 
 
     def record_execution(
         self,
@@ -169,6 +175,7 @@ class GraphRunner(Runner, Generic[T]):
     ) -> None:
         """Record a command execution in the graph."""
         node = Node(
+            execution_id=self._next_execution_id(),
             package=metadata.package,
             name=metadata.name,
             inputs=input_files,

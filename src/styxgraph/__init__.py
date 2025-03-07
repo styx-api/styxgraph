@@ -46,7 +46,7 @@ class DependencyResolver:
     def is_dependent(input_path: Path, output_root: Path) -> bool:
         """Check if input_path is within the output root directory."""
         try:
-            return input_path.is_relative_to(output_root)
+            return input_path.absolute().is_relative_to(output_root.absolute())
         except ValueError:
             return False
 
@@ -162,10 +162,10 @@ class GraphRunner(Runner, Generic[T]):
     def start_execution(self, metadata: Metadata) -> Execution:
         """Start execution."""
         return _GraphExecution(self.base.start_execution(metadata), self, metadata)
-    
+
     def _next_execution_id(self) -> int:
         self._execution_counter += 1
-        return self._execution_counter - 1 
+        return self._execution_counter - 1
 
     def record_execution(
         self,
